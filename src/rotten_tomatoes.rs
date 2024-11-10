@@ -1,9 +1,9 @@
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveTime};
 use soup::{NodeExt, QueryBuilderExt, Soup};
 
 use crate::domain::NewsItem;
 
-const NEWS_URL: &'static str = "https://editorial.rottentomatoes.com/news";
+const NEWS_URL: &str = "https://editorial.rottentomatoes.com/news";
 
 pub async fn fetch_news() -> anyhow::Result<Vec<NewsItem>> {
     let news_html = reqwest::get(NEWS_URL)
