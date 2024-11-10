@@ -84,5 +84,13 @@ pub async fn fetch_news() -> anyhow::Result<Vec<NewsItem<NewsItemKind>>> {
         })
         .collect::<Vec<_>>();
 
-    Ok(news)
+    let mut unique_news: Vec<NewsItem<NewsItemKind>> = vec![];
+    for item in news {
+        if unique_news.iter().find(|i| i.url == item.url).is_some() {
+            continue;
+        }
+        unique_news.push(item)
+    }
+
+    Ok(unique_news)
 }
