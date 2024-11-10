@@ -1,11 +1,38 @@
 use chrono::{NaiveDate, NaiveTime};
+use reqwest::Url;
+use serde::{Deserialize, Serialize};
 use soup::{NodeExt, QueryBuilderExt, Soup};
 
 use crate::domain::NewsItem;
 
 const NEWS_URL: &str = "https://editorial.rottentomatoes.com/news";
 
-pub async fn fetch_news() -> anyhow::Result<Vec<NewsItem>> {
+#[derive(Debug, Serialize, Deserialize)]
+pub enum NewsItemKind {
+    Article,
+    Guide,
+    Gallery,
+}
+
+impl NewsItemKind {
+    fn try_from_url(url: impl AsRef<str>) -> anyhow::Result<Self> {
+        let url = Url::parse(url.as_ref())?;
+        match url.path_segments() {
+            Some(mut segments) => match segments.next() {
+                Some(segment) => match segment {
+                    "article" => Ok(Self::Article),
+                    "guide" => Ok(Self::Guide),
+                    "gallery" => Ok(Self::Gallery),
+                    unknown => anyhow::bail!("Unknown pattern: {}", unknown)
+                },
+                None => anyhow::bail!("Unknown URL format: {}", url),
+            },
+            None => anyhow::bail!("Unknown URL format: {}", url),
+        }
+    }
+}
+
+pub async fn fetch_news() -> anyhow::Result<Vec<NewsItem<NewsItemKind>>> {
     let news_html = reqwest::get(NEWS_URL)
         .await?
         .error_for_status()?
@@ -36,14 +63,21 @@ pub async fn fetch_news() -> anyhow::Result<Vec<NewsItem>> {
                         .timestamp()
                 });
 
-            match (title, date) {
-                (Some(title), Some(date)) => Some(NewsItem {
+            let url = node.attrs().get("href").map(ToString::to_string);
+
+            let kind = url
+                .as_ref()
+                .and_then(|url| NewsItemKind::try_from_url(url).ok());
+
+            match (title, date, url, kind) {
+                (Some(title), Some(date), Some(url), Some(kind)) => Some(NewsItem {
                     title,
                     date,
-                    url: node.attrs().get("href").unwrap().to_string(),
+                    url,
+                    kind,
                 }),
-                _ => {
-                    log::warn!("Failed to parse title or date");
+                failure => {
+                    log::warn!("Failed to parse news item: {:#?}", failure);
                     None
                 }
             }
